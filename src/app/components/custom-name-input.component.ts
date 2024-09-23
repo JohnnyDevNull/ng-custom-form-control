@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, forwardRef, inject, Input, input, OnDestroy, OnInit } from '@angular/core';
+import { ChangeDetectionStrategy, Component, effect, forwardRef, inject, input, OnDestroy, OnInit } from '@angular/core';
 import { ControlContainer, ControlValueAccessor, FormControl, FormGroup, NG_VALUE_ACCESSOR, ReactiveFormsModule } from "@angular/forms";
 import { Subject, takeUntil } from 'rxjs';
 
@@ -27,6 +27,7 @@ type TFormControlInput = string | null;
 export class CustomNameInput implements OnInit, OnDestroy, ControlValueAccessor {
   value = input<TValueInput>(null);
   formControlName = input<TFormControlInput>(null);
+  disabled = input<boolean>(false);
 
   formControl!: FormControl;
 
@@ -34,18 +35,17 @@ export class CustomNameInput implements OnInit, OnDestroy, ControlValueAccessor 
     return this.formControl?.touched ?? false;
   }
 
-  get disabled(): boolean {
-    return this.formControl?.disabled ?? false;
-  }
-
-  @Input() set disabled(value: boolean) {
-    if (this.formControl) {
-      value ? this.formControl.disable() : this.formControl.enable();
-    }
-  }
-
   private readonly controlContainer = inject(ControlContainer, { skipSelf: true, optional: true, host: true  });
   private readonly destroy$ = new Subject<void>();
+
+  constructor() {
+    effect(() => {
+      if (this.formControl) {
+        const isDisabled = this.disabled();
+        isDisabled ? this.formControl.disable() : this.formControl.enable();
+      }
+    })
+  }
 
   ngOnInit(): void {
     this.formControl = new FormControl(this.value() ?? null);
