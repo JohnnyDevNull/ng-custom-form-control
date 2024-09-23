@@ -1,8 +1,10 @@
-import { Component, forwardRef, inject, input, OnInit } from '@angular/core';
-import { ControlContainer, ControlValueAccessor, FormControl, FormGroup, NG_VALUE_ACCESSOR, ReactiveFormsModule } from "@angular/forms";
+import { AfterViewInit, Component, forwardRef, inject, Input, input, OnDestroy, OnInit, ViewChild } from '@angular/core';
+import { ControlContainer, ControlValueAccessor, FormControl, FormGroup, FormsModule, NG_VALUE_ACCESSOR, NgForm, ReactiveFormsModule } from "@angular/forms";
 import { RouterOutlet } from '@angular/router';
+import { Subject, takeUntil } from 'rxjs';
 
-type TNameInput = string | null;
+type TValueInput = string | null;
+type TFormControlInput = string | null;
 
 @Component({
   selector: 'custom-name-input',
@@ -10,7 +12,7 @@ type TNameInput = string | null;
   imports: [ReactiveFormsModule],
   template: `
     <div>
-      <label for="nameInput">Name:</label>
+      <label for="nameInput">Name: </label>
       <input id="nameInput" [formControl]="formControl" placeholder="Name">
     </div>
   `,
@@ -22,85 +24,134 @@ type TNameInput = string | null;
     }
   ]
 })
-export class CustomNameInput implements OnInit, ControlValueAccessor {
-  value = input<TNameInput>(null);
-  formControlName = input<TNameInput>(null);
+export class CustomNameInput implements OnInit, OnDestroy, ControlValueAccessor {
+  value = input<TValueInput>(null);
+  formControlName = input<TFormControlInput>(null);
 
   formControl!: FormControl;
 
-  protected controlContainer = inject(ControlContainer, { skipSelf: true, optional: true, host: true  });
-
   get touched(): boolean {
-    return this.formControl.touched;
+    return this.formControl?.touched ?? false;
   }
 
   get disabled(): boolean {
-    return this.formControl.disabled;
+    return this.formControl?.disabled ?? false;
   }
 
-  ngOnInit(): void {
-    this.formControl = new FormControl(this.value());
+  @Input() set disabled(value: boolean) {
+    if (this.formControl) {
+      value ? this.formControl.disable() : this.formControl.enable();
+    }
+  }
 
-    if (this.controlContainer && this.controlContainer.control instanceof FormGroup) {
-      const parentFormGroup = this.controlContainer.control as FormGroup;
-      const controlName = this.formControlName();
-      if (controlName&& !parentFormGroup.contains(controlName)) {
-        parentFormGroup.addControl(controlName, this.formControl);
+  private readonly controlContainer = inject(ControlContainer, { skipSelf: true, optional: true, host: true  });
+  private readonly destroy$ = new Subject<void>();
+
+  ngOnInit(): void {
+    this.formControl = new FormControl(this.value() ?? null);
+
+    if (this.isReactiveForm()) {
+      const parentFormGroup = this.controlContainer?.control as FormGroup;
+      if (!this.formHasControl(parentFormGroup)) {
+        parentFormGroup.addControl(this.formControlName() as string, this.formControl);
+      }
+    } else {
+      this.formControl.valueChanges.pipe(takeUntil(this.destroy$)).subscribe(value => this.onChange(value));
+    }
+  }
+
+  ngOnDestroy(): void {
+    this.destroy$.next();
+    this.destroy$.complete();
+
+    if (this.isReactiveForm()) {
+      const parentFormGroup = this.controlContainer?.control as FormGroup;
+      if (this.formHasControl(parentFormGroup)) {
+        parentFormGroup.removeControl(this.formControlName() as string);
       }
     }
   }
 
-  onChange: (value: TNameInput) => void = () => {};
+  onChange: (value: TValueInput) => void = () => {};
   onTouched: () => void = () => {};
 
-  registerOnChange(fn: any): void {
+  registerOnChange(fn: (value: TValueInput) => void): void {
     this.onChange = fn;
   }
 
-  registerOnTouched(fn: any): void {
+  registerOnTouched(fn: () => void): void {
     this.onTouched = fn;
   }
 
-  writeValue(value: TNameInput): void {
-    this.formControl.setValue(value);
+  writeValue(value: TValueInput): void {
+    if (this.formControl) {
+      this.onChange(value);
+      this.formControl.setValue(value);
+    }
   }
 
   markAsTouched(): void {
-    if (!this.touched) {
+    if (this.formControl && !this.touched) {
       this.onTouched();
       this.formControl.markAsTouched();
     }
+  }
+
+  private isReactiveForm(): boolean {
+    return !!(this.formControlName() && this.controlContainer && this.controlContainer.control instanceof FormGroup);
+  }
+
+  private formHasControl(form: FormGroup): boolean {
+    return !!(this.formControlName() && form.contains(this.formControlName() as string));
   }
 }
 
 @Component({
   selector: 'app-root',
   standalone: true,
-  imports: [RouterOutlet, CustomNameInput, ReactiveFormsModule],
+  imports: [RouterOutlet, CustomNameInput, ReactiveFormsModule, FormsModule],
   template: `
     <h2>NG Playgroud</h2>
     <hr>
-    <form [formGroup]="form">
+    <h3>Reactive Form</h3>
+    <form [formGroup]="reactiveForm">
       <custom-name-input formControlName="my-name"></custom-name-input>
     </form>
-    <div>
-      <button (click)="onToggleButtonClick()">enable/disable</button>
+    <div style="margin-top: 10px;">
+      <button (click)="onToggleReactiveFormDisabled()">enable/disable</button>
+    </div>
+    <h3>Template driven Form</h3>
+    <form #myForm="ngForm">
+      <custom-name-input name="my-name" [(ngModel)]="nameValue" [disabled]="nameDisabled"></custom-name-input>
+    </form>
+    <div style="margin-top: 10px;">
+      <button (click)="onToggleTemplateFormDisabled()">enable/disable</button>
     </div>
   `
 })
-export class AppComponent implements OnInit {
-  form = new FormGroup({ id: new FormControl('my-form') });
+export class AppComponent implements OnInit, AfterViewInit {
+  reactiveForm = new FormGroup({ id: new FormControl('my-form') });
+
+  @ViewChild('myForm') templateForm!: NgForm;
+
+  nameValue = 'Max Mustermann';
+  nameDisabled = false;
 
   ngOnInit(): void {
-    this.form.statusChanges.subscribe(status => console.log('statusChanges', status));
-    this.form.valueChanges.subscribe(value => console.log('valueChanges', value));
+    this.reactiveForm.statusChanges.subscribe(status => console.log('ReactiveForm statusChanges', status));
+    this.reactiveForm.valueChanges.subscribe(value => console.log('ReactiveForm valueChanges', value));
   }
 
-  onToggleButtonClick() {
-    if (!this.form.disabled) {
-      this.form.disable();
-    } else {
-      this.form.enable();
-    }
+  ngAfterViewInit(): void {
+    this.templateForm?.statusChanges?.subscribe(status => console.log('TemplateForm statusChanges', status));
+    this.templateForm?.valueChanges?.subscribe(value => console.log('TemplateForm valueChanges', value));
+  }
+
+  onToggleReactiveFormDisabled() {
+    this.reactiveForm.disabled ? this.reactiveForm.enable() : this.reactiveForm.enable();
+  }
+
+  onToggleTemplateFormDisabled() {
+    this.nameDisabled = !this.nameDisabled;
   }
 }
