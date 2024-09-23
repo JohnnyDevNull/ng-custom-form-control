@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, effect, forwardRef, inject, input, OnDestroy, OnInit } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, effect, forwardRef, inject, input, OnDestroy, OnInit } from '@angular/core';
 import { ControlContainer, ControlValueAccessor, FormControl, FormGroup, NG_VALUE_ACCESSOR, ReactiveFormsModule } from "@angular/forms";
 import { Subject, takeUntil } from 'rxjs';
 
@@ -28,12 +28,9 @@ export class CustomNameInput implements OnInit, OnDestroy, ControlValueAccessor 
   value = input<TValueInput>(null);
   formControlName = input<TFormControlInput>(null);
   disabled = input<boolean>(false);
+  touched = computed(() => this.formControl?.touched ?? false);
 
   formControl!: FormControl;
-
-  get touched(): boolean {
-    return this.formControl?.touched ?? false;
-  }
 
   private readonly controlContainer = inject(ControlContainer, { skipSelf: true, optional: true, host: true  });
   private readonly destroy$ = new Subject<void>();
@@ -91,7 +88,7 @@ export class CustomNameInput implements OnInit, OnDestroy, ControlValueAccessor 
   }
 
   markAsTouched(): void {
-    if (this.formControl && !this.touched) {
+    if (this.formControl && !this.touched()) {
       this.onTouched();
       this.formControl.markAsTouched();
     }
