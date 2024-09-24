@@ -3,7 +3,7 @@ import { ControlContainer, ControlValueAccessor, FormControl, FormGroup, NG_VALU
 import { Subject, takeUntil } from 'rxjs';
 
 type TValueInput = string | null;
-type TFormControlInput = string | null;
+type TFormControlNameInput = string | null;
 
 @Component({
   selector: 'custom-name-input',
@@ -26,11 +26,11 @@ type TFormControlInput = string | null;
 })
 export class CustomNameInput implements OnInit, OnDestroy, ControlValueAccessor {
   value = input<TValueInput>(null);
-  formControlName = input<TFormControlInput>(null);
+  formControlName = input<TFormControlNameInput>(null);
   disabled = input<boolean>(false);
   touched = computed(() => this.formControl?.touched ?? false);
 
-  formControl!: FormControl;
+  formControl!: FormControl<TValueInput>;
 
   private readonly controlContainer = inject(ControlContainer, { skipSelf: true, optional: true, host: true  });
   private readonly destroy$ = new Subject<void>();
@@ -45,15 +45,10 @@ export class CustomNameInput implements OnInit, OnDestroy, ControlValueAccessor 
   }
 
   ngOnInit(): void {
-    this.formControl = new FormControl(this.value() ?? null);
-
     if (this.isReactiveForm()) {
-      const parentFormGroup = this.controlContainer?.control as FormGroup;
-      if (!this.formHasControl(parentFormGroup)) {
-        parentFormGroup.addControl(this.formControlName() as string, this.formControl);
-      }
+      this.handleReactiveForom();
     } else {
-      this.formControl.valueChanges.pipe(takeUntil(this.destroy$)).subscribe(value => this.onChange(value));
+      this.handleTemplateDrivenForm();
     }
   }
 
@@ -100,5 +95,21 @@ export class CustomNameInput implements OnInit, OnDestroy, ControlValueAccessor 
 
   private formHasControl(form: FormGroup): boolean {
     return !!(this.formControlName() && form.contains(this.formControlName() as string));
+  }
+
+  private handleReactiveForom() {
+    const parentFormGroup = this.controlContainer?.control as FormGroup;
+    
+    if (this.formHasControl(parentFormGroup)) {
+      this.formControl = parentFormGroup.get(this.formControlName() as string) as FormControl<TValueInput>;
+    } else {
+      this.formControl = new FormControl(this.value() ?? null);
+      parentFormGroup.addControl(this.formControlName() as string, this.formControl);
+    }
+  }
+
+  private handleTemplateDrivenForm() {
+    this.formControl = new FormControl(this.value() ?? null);
+    this.formControl.valueChanges.pipe(takeUntil(this.destroy$)).subscribe(value => this.onChange(value));
   }
 }
