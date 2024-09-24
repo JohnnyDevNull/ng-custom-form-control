@@ -99,11 +99,16 @@ export class CustomNameInput implements OnInit, OnDestroy, ControlValueAccessor 
 
   private handleReactiveForom() {
     const parentFormGroup = this.controlContainer?.control as FormGroup;
-    
+
     if (this.formHasControl(parentFormGroup)) {
       this.formControl = parentFormGroup.get(this.formControlName() as string) as FormControl<TValueInput>;
     } else {
       this.formControl = new FormControl(this.value() ?? null);
+      // this is needed if we add controls dynamically and form is already set to "disabled" state
+      // otherwise a new control will change disabled state of the form to valid/invalid
+      if (parentFormGroup.status === 'DISABLED') {
+        this.formControl.disable();
+      }
       parentFormGroup.addControl(this.formControlName() as string, this.formControl);
     }
   }
