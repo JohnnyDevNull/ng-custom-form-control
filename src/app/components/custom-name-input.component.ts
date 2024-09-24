@@ -34,6 +34,7 @@ export class CustomNameInput implements OnInit, OnDestroy, ControlValueAccessor 
 
   private readonly controlContainer = inject(ControlContainer, { skipSelf: true, optional: true, host: true  });
   private readonly destroy$ = new Subject<void>();
+  private removeControlOnDestroy = false;
 
   constructor() {
     effect(() => {
@@ -56,7 +57,7 @@ export class CustomNameInput implements OnInit, OnDestroy, ControlValueAccessor 
     this.destroy$.next();
     this.destroy$.complete();
 
-    if (this.isReactiveForm()) {
+    if (this.isReactiveForm() && this.removeControlOnDestroy) {
       const parentFormGroup = this.controlContainer?.control as FormGroup;
       if (this.formHasControl(parentFormGroup)) {
         parentFormGroup.removeControl(this.formControlName() as string);
@@ -113,6 +114,7 @@ export class CustomNameInput implements OnInit, OnDestroy, ControlValueAccessor 
         this.formControl.disable();
       }
       parentFormGroup.addControl(this.formControlName() as string, this.formControl);
+      this.removeControlOnDestroy = true;
     }
   }
 
