@@ -97,12 +97,15 @@ export class CustomNameInput implements OnInit, OnDestroy, ControlValueAccessor 
     return !!(this.formControlName() && form.contains(this.formControlName() as string));
   }
 
+  /** Reactive form [formControlName] */
   private handleReactiveForom() {
     const parentFormGroup = this.controlContainer?.control as FormGroup;
 
     if (this.formHasControl(parentFormGroup)) {
+      // The control is pre-configured - this is the angular default behavior
       this.formControl = parentFormGroup.get(this.formControlName() as string) as FormControl<TValueInput>;
     } else {
+      // The control is pre-configured - this is the new dynamic behavior
       this.formControl = new FormControl(this.value() ?? null);
       // this is needed if we add controls dynamically and form is already set to "disabled" state
       // otherwise a new control will change disabled state of the form to valid/invalid
@@ -113,6 +116,7 @@ export class CustomNameInput implements OnInit, OnDestroy, ControlValueAccessor 
     }
   }
 
+  /** Template driven form [(ngModel)] */
   private handleTemplateDrivenForm() {
     this.formControl = new FormControl(this.value() ?? null);
     this.formControl.valueChanges.pipe(takeUntil(this.destroy$)).subscribe(value => this.onChange(value));
