@@ -109,7 +109,7 @@ export class CustomNameInput implements OnInit, OnDestroy, ControlValueAccessor 
       this.formControl = new FormControl(this.value() ?? null);
       // this is needed if we add controls dynamically and form is already set to "disabled" state
       // otherwise a new control will change disabled state of the form to valid/invalid
-      if (parentFormGroup.status === 'DISABLED') {
+      if (this.disabled() || parentFormGroup.status === 'DISABLED') {
         this.formControl.disable();
       }
       parentFormGroup.addControl(this.formControlName() as string, this.formControl);
